@@ -1,0 +1,146 @@
+@extends('layouts.app')
+@section('css')
+<style type="text/css">
+    
+</style>
+@endsection
+@section('content')
+    <div id="wrapper">
+        <nav class="navbar navbar-fixed-top">
+            <div class="container-fluid">
+                @include('layouts.topbar')
+            </div>
+        </nav> 
+
+        <div id="left-sidebar" class="sidebar">
+            <div class="sidebar-scroll">
+                @include('layouts.leftside')
+            </div>
+        </div>
+
+        <div id="main-content">
+            <div class="container-fluid">
+                <div class="block-header">
+                    <div class="row">
+                        @include('layouts.topbottombar')
+                    </div>
+                </div>
+
+                <div class="row clearfix">
+                    <div class="col-lg-12 col-md-12">
+                        <div class="card">      
+                            <div class="header">
+                                <h2>Products:</h2>
+                                <ul class="header-dropdown">
+                                    <li>
+                                        <a href="/ceo/new-product-form" class="btn btn-info btn-sm">
+                                            <b style="">Add product</b>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>     
+                            <div class="body pt-0">
+                                <div class="row">
+                                    <div class="table-responsive">
+                                        <table class="table m-b-0 c_list">
+                                            <thead class="thead-light">
+                                                <tr>
+                                                    <th>Name</th>   
+                                                    <th>Buying Price</th>   
+                                                    <th>Wholesale Price</th>   
+                                                    <th>Retail Price</th>            
+                                                    <th>Av. Quantity</th>      
+                                                    <th>Category</th>  
+                                                    <th>Status</th>
+                                                    <th>Action</th>
+                                                </tr>
+                                            </thead>
+                                                <tbody>
+                                                @if($data['products'])
+                                                @foreach($data['products'] as $value)
+                                                    <tr class="pr-{{$value->id}}">
+                                                        @if($value->image) 
+                                                            <?php $src = '/images/companies/'.Auth::user()->company->folder.'/products/'. $value->image; ?>
+                                                        @else
+                                                            <?php  $src = "/images/product.jpg"; ?>
+                                                        @endif
+                                                        <td>
+                                                            <span style="display:inline-flex;">
+                                                                <img src="{{ $src }}" class="avatar mr-2" alt="">
+                                                                <span style="display: inline-block;padding-top: 10px;">
+                                                                    {{$value->name}}
+                                                                </span>
+                                                            </span>
+                                                        </td>                                 
+                                                        <td>
+                                                            {{number_format($value->buying_price)}}
+                                                        </td>    
+                                                        <td>
+                                                            {{number_format($value->wholesale_price)}}
+                                                        </td>
+                                                        <td>
+                                                            {{number_format($value->retail_price)}}
+                                                        </td>                                     
+                                                        <td>       
+                                                            {{ App\Http\Controllers\ProductController::totalQuantity($value->id) }} 
+                                                        </td>                                  
+                                                        <td>
+                                                            <?php
+                                                                if ($value->productcategory) {
+                                                                    echo $value->productcategory->name;
+                                                                    if ($value->productcategory->categorygroup) {
+                                                                        echo " (".$value->productcategory->categorygroup->name.")";
+                                                                    }
+                                                                }
+                                                            ?>    
+                                                        </td>    
+                                                        <td>
+                                                            @if($value->status == 'published')
+                                                                <span class="badge badge-success">Published</span>
+                                                            @else
+                                                                <span class="badge badge-danger">Unpublished</span>
+                                                            @endif
+                                                        </td>   
+                                                        <td>  
+                                                            <a href="/{{$data['role']}}/products/{{ $value->id }}" class="btn btn-info btn-sm"><i class="fa fa-edit"></i></a>
+                                                            <a href="#" class="btn btn-danger btn-sm deleteProduct" val="{{$value->id}}" name="{{$value->name}}"><i class="fa fa-times"></i></a>
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                                @endif
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>                            
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+@endsection
+
+@section('js')
+<script type="text/javascript">
+    
+    $(document).on('click','.deleteProduct',function(e){
+        var name = $(this).attr('name');
+        if(confirm("Click OK to confirm that you delete "+name+" product.")){
+            e.preventDefault();
+            $('.full-cover').css('display','block');
+            $('.full-cover .inside').html('Deleting...');
+            var id = $(this).attr('val');
+            var name = $(this).attr('name');
+
+            $.get('/delete-product/'+id, function(data) {
+                $('.full-cover').css('display','none');
+                popNotification('success',name+' product is deleted successfully');                
+                $('.pr-'+data.id).closest("tr").remove();
+            });            
+        }
+        return;
+    });
+</script>
+@endsection

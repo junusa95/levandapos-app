@@ -1,0 +1,147 @@
+<?php
+    $reminder = "";
+    if(Auth::user()->company) {
+        $reminder = Auth::user()->company->reminder;
+    }
+    if(Cookie::get("language") == 'en') {
+        $_GET['reminder-desc'] = "Hello, Free trial uses for this account will expire after ".$reminder." days";
+        $_GET['end-free-t-desc'] = "Please pay for your account so that it will not be blocked. <a href='#' data-toggle='modal' data-target='#endFreeTrialModal'>Click here to see our pricing</a>";
+        $_GET['end-free-t-desc-2'] = "Hello, Free trial uses for this account is expired. <br> Please pay for your account so that it will not be blocked. <a href='#' data-toggle='modal' data-target='#endFreeTrialModal'>Click here to see our pricing</a> ";
+        $_GET['expire-desc-2'] = "Hello, Payments for this account is expired. <br> Please pay for your account so that it will not be blocked. <a href='#' data-toggle='modal' data-target='#endFreeTrialModal'>Click here to see our pricing</a> ";
+    } else {
+        $_GET['reminder-desc'] = "Habari, Matumizi ya bure kwa akaunti hii yataisha baada ya siku ".$reminder;
+        $_GET['end-free-t-desc'] = "Tafadhali lipia akaunti yako ili isifungiwe muda utakapoisha. <a href='#' data-toggle='modal' data-target='#endFreeTrialModal'>Bonyeza hapa kuona bei zetu</a>";
+        $_GET['end-free-t-desc-2'] = "Habari, Matumizi ya bure kwa akaunti hii yameisha. <br> Tafadhali lipia akaunti yako ili isifungiwe. <a href='#' data-toggle='modal' data-target='#endFreeTrialModal'>Bonyeza hapa kuona bei zetu</a>";
+        $_GET['expire-desc-2'] = "Habari, Malipo kwa akaunti hii yameisha. <br> Tafadhali lipia akaunti yako ili isifungiwe. <a href='#' data-toggle='modal' data-target='#endFreeTrialModal'>Bonyeza hapa kuona bei zetu</a>";
+    }
+?>
+<style type="text/css">
+    .top-btm .badge {position: absolute;margin-top: 3px;font-size:12px;padding: 0.25rem;}
+  @media screen and (max-width: 480px) {
+    .top-btm {margin-top: -14px;margin-bottom: -10px;}
+    .top-btm h2 {font-size: 18px;}
+    .top-btm .badge {margin-top: 2px;padding: 0.1rem}
+  }
+  @media screen and (max-width: 400px) {
+    .top-btm {margin-top: -18px;}
+    .top-btm h2 {font-size: 17px;} 
+  }
+</style>
+
+    <div class="col-lg-6 col-md-8 col-sm-12 top-btm">
+        <h2>
+            <!-- <a href="javascript:void(0);" class="btn btn-xs btn-link btn-toggle-fullwidth"><i class="fa fa-arrow-left"></i></a>  -->
+            <span class="Bpagename"><?php echo Session::get('role'); ?></span>
+            <?php if (Session::get('role') == "Store Master") { ?>
+                <!-- <span class="tag badge badge-info ml-3" style=""><?php //echo $data['store']->name; ?></span> -->
+            <?php } ?>
+            <?php if (Session::get('role') == "Cashier") { ?>
+                <!-- <span class="tag badge badge-info ml-3" style=""><?php //echo $data['shop']->name; ?></span> -->
+            <?php } ?>
+            <?php if (Session::get('role') == "Sales Person") { ?>
+                <!-- <span class="tag badge badge-info ml-3" style=""><?php //echo $data['shop']->name; ?></span> -->
+            <?php } ?>
+        </h2>
+        <ul class="breadcrumb">
+            <!-- <li class="breadcrumb-item"><a href="" class="homepath"><i class="fa fa-arrow-left pr-1"></i> Home</a></li>                             -->
+            <!-- <li class="breadcrumb-item active">Dashboard</li> --> 
+        </ul>
+    </div>            
+
+    <div class="col-sm-12">
+        @if(session()->has('success'))
+            <div class="alert alert-success alert-dismissible mt-3" role="alert">
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <i class="fa fa-check-circle"></i> {{ session()->get('success') }}
+            </div>
+        @endif 
+        @if(session()->has('error'))
+            <div class="alert alert-danger alert-dismissible mt-3" role="alert">
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <i class="fa fa-warning"></i> {{ session()->get('error') }}
+            </div>
+        @endif 
+        <!-- hidden alert -->
+        <div class="alert alert-info alert-dismissible mt-4 editing-no-h" role="alert" style="display:none;font-weight: bold;text-align: center;">
+            <i class="fa fa-pencil"></i> <span class="editing-no ml-3"></span>
+        </div>
+    </div>
+    
+
+    @if(Auth::user()->isAdmin()) 
+    @elseif(Auth::user()->isAgent())
+    @else
+    <!-- <div class="col-sm-12">
+        <div class="alert alert-info alert-dismissible mt-3" role="alert">
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <i class="fa fa-info fa-2x" style="float:left"></i> <div class="pl-3" style="display:inline-block;"><h5 class="mb-2"><b>Tangazo:</b></h5> Leo 27.09.2023 kuanzia saa 5 usiku kutakua na maboresho ya mfumo yatayopelekea usiweze kutumia huduma yetu kwa muda. <br> Tunaomba radhi kwa usumbufu utaojitokeza.</div>
+        </div>
+    </div> -->
+    
+    @if(\App\Company::where('id',Auth::user()->company_id)->where('status2','new')->first())
+    <?php 
+        $fshop = \App\Shop::connection(Auth::user()->company->database)->where('company_id',Auth::user()->company_id)->first();
+    ?>
+    <div class="col-12 instruction-block">
+        <div class="alert alert-info alert-dismissible mt-3" role="alert">
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close" style="color:red;"><i class="fa fa-times"></i></button>
+            <!-- <i class="fa fa-info-circle fa-2x" style="float:left"></i>  -->
+            <div class="pl-3 mt-3" style="display:inline-block;"> 
+                <div><i class="fa fa-check fa-2x text-success"></i> Umeshafungua akaunti</div>
+                <div><i class="fa fa-check fa-2x text-success"></i> Umeshatengeneza duka ({{ $fshop->name }})</div>
+                @if(\App\Product::where('company_id',Auth::user()->company_id)->first())
+                    <div><i class="fa fa-check fa-2x text-success"></i> Umeshatengeneza bidhaa</div>
+                    @if(\App\Sale::where('company_id',Auth::user()->company_id)->first())
+                        <div><i class="fa fa-check fa-2x text-success"></i> Umefanikiwa kuuza bidhaa</div>
+
+                        <div class="mt-3">
+                            <button class="btn btn-primary btn-sm close-instruction">Funga Muongozo</button>
+                        </div>
+                    @else
+                        <span><?php echo $_GET['now']; ?>,</span>
+                        <div>
+                            <svg class="w-6 h-6 text-gray-800 dark:text-white" style="width:15px;" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 10">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 5h12m0 0L9 1m4 4L9 9"/>
+                            </svg> <a class="click-shortcut" check="sell" href="#" style="text-decoration: underline;text-underline-offset: 3px;">Uza bidhaa</a> 
+                            <div class="ml-3 mt-2"><i class="fa fa-hand-o-right"></i> <a href="#" data-toggle='modal' data-target='#howSaleProduct'>Soma jinsi ya kuuza bidhaa</a></div>
+                        </div>
+                    @endif
+                @else
+                <span><?php echo $_GET['now']; ?>,</span>
+                <div>
+                    <svg class="w-6 h-6 text-gray-800 dark:text-white" style="width:15px;" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 10">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 5h12m0 0L9 1m4 4L9 9"/>
+                    </svg> <a href="/shops/{{$fshop->id}}?tab=products&add-product=yes" style="text-decoration: underline;text-underline-offset: 3px;">Tengeneza bidhaa</a> 
+                    <div class="ml-3 mt-2"><i class="fa fa-hand-o-right"></i> <a href="#" data-toggle='modal' data-target='#howCreateProduct'>Soma jinsi ya kutengeneza bidhaa</a></div>
+                </div>
+                @endif
+            </div>
+        </div>
+    </div>
+    
+    @include('modals.miongozo')
+    
+    @endif
+
+
+    <div class="col-sm-12" style="<?php if(strlen(Auth::user()->company->reminder) >= 1) { } else { echo 'display:none;'; } ?>">
+        <div class="alert alert-warning alert-dismissible mt-3" role="alert">
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <i class="fa fa-warning fa-2x" style="float:left"></i> <div class="pl-3" style="display:inline-block;"><h5 class="mb-2"><b><?php echo $_GET['reminder']; ?>:</b></h5> <?php echo $_GET['reminder-desc']; ?>.. <?php echo $_GET['end-free-t-desc']; ?></div>
+        </div>
+    </div>
+
+    <div class="col-sm-12" style="<?php if(Auth::user()->company->status == 'end free trial') { } else { echo 'display:none;'; } ?>">
+        <div class="alert alert-danger alert-dismissible mt-3" role="alert">
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <i class="fa fa-warning fa-2x" style="float:left"></i> <div class="pl-3" style="display:inline-block;"><h5 class="mb-2"><b><?php echo $_GET['reminder']; ?>:</b></h5> <?php echo $_GET['end-free-t-desc-2']; ?></div>
+        </div>
+    </div>
+    
+    <div class="col-sm-12" style="<?php if(Auth::user()->company->status == "not paid") { } else { echo 'display:none;'; } ?>">
+        <div class="alert alert-danger alert-dismissible mt-3" role="alert">
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <i class="fa fa-warning fa-2x" style="float:left"></i> <div class="pl-3" style="display:inline-block;"><h5 class="mb-2"><b><?php echo $_GET['reminder']; ?>:</b></h5> <?php echo $_GET['expire-desc-2']; ?></div>
+        </div>
+    </div>
+    @endif

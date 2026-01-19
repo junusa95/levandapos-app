@@ -1,0 +1,185 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use DB;
+use Session;
+use App\Customer;
+use App\CustomerDebt;
+use App\Shop;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+class CustomerController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function index()
+    {
+        //
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function create()
+    {
+        //
+    }
+
+    public function store(Request $request)
+    {
+        $customer = Customer::create(['name' => $request->name, 'phone' => $request->phone, 'gender' => $request->gender, 'location' => $request->location, 'company_id' => Auth::user()->company_id, 'shop_id'=>$request->shopid, 'user_id' => Auth::user()->id,'status'=>'active']);
+        if ($customer) {
+            return response()->json(['success'=>'Success! Customer created successfully.','customer_id'=>$customer->id]);
+        }         
+    }
+
+    /**
+     * Display the specified resource.
+     *
+     * @param  \App\Customer  $customer
+     * @return \Illuminate\Http\Response
+     */
+    public function show(Customer $customer)
+    {
+        //
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     *
+     * @param  \App\Customer  $customer
+     * @return \Illuminate\Http\Response
+     */
+    public function edit(Customer $customer)
+    {
+        //
+    }
+
+    public function update(Request $request) {
+        $customer = Customer::where('id',$request->customer)->where('company_id', Auth::user()->company_id)->first();
+        if ($customer) {
+            $update = $customer->update(['name' => $request->name, 'phone' => $request->phone, 'gender' => $request->gender, 'location' => $request->location]);
+            if ($update) {
+                return response()->json(['success'=>'Success! Customer updated successfully.','customer_id'=>$customer->id]);
+            }
+        }
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     *
+     * @param  \App\Customer  $customer
+     * @return \Illuminate\Http\Response
+     */
+    public function destroy(Customer $customer)
+    {
+        //
+    }
+
+    public function customers($check) {
+        if ($check == 'admin') {
+            Session::put('role','Admin'); 
+        } elseif ($check == 'ceo') {
+            Session::put('role','CEO');
+        } elseif ($check == 'business-owner') {
+            Session::put('role','Business Owner');
+        }
+        $data['customers'] = Customer::where('status','active')->where('company_id', Auth::user()->company_id)->orderBy('name')->get();
+        $data['shops'] = Shop::where('company_id', Auth::user()->company_id)->get();
+        return view('customers',compact('data'));
+    }
+
+    public function customer($check,$id) {
+        if ($check == "customers-with-balance") {
+            $sid = $id;
+            $customers = Customer::query()->select([ 
+                DB::raw('customers.id as cid, customers.name as cname, customers.location as clocation, customers.gender as cgender, SUM(customer_debts.amount_with_interest) as a_interest, SUM(CASE WHEN interest is null THEN debt_amount ELSE 0 END) as d_amount')
+            ])
+            ->leftJoin('customer_debts', function ($join) {
+                $join->on('customers.id','=','customer_debts.customer_id')->where('customer_debts.status','!=','deleted');
+            })
+            ->where('customers.status','active')
+            ->where('customers.shop_id',$sid)->where('customers.company_id', Auth::user()->company_id)            
+            ->groupBy('customers.id')->orderBy('customers.name')
+            ->get();
+
+            return response()->json(['customers'=>$customers]);
+        }
+
+        if ($check == "searched-customers") {
+            $data = explode("~",$id);
+            $sid = $data[0];
+            $cname = $data[1];  
+            $customers = Customer::query()->select([
+                DB::raw('customers.id as cid, customers.name as cname, customers.location as clocation, customers.gender as cgender, SUM(customer_debts.amount_with_interest) as a_interest, SUM(CASE WHEN interest is null THEN debt_amount ELSE 0 END) as d_amount')
+            ])
+            ->leftJoin('customer_debts', function ($join) {
+                $join->on('customers.id','=','customer_debts.customer_id')->where('customer_debts.status','!=','deleted');
+            })
+            ->where('customers.status','active')->where('customers.name','like','%'.$cname.'%')
+            ->where('customers.shop_id',$sid)->where('customers.company_id', Auth::user()->company_id)            
+            ->groupBy('customers.id')->orderBy('customers.name')
+            ->get();
+
+            return response()->json(['customers'=>$customers]);
+        }
+
+        if ($check == "available-debt") {
+            // data has shop id and customer id
+            $data = explode("~",$id);
+            $shop_id = $data[0];
+            $customer_id = $data[1];  
+            if ($shop_id == 'all') {
+                $sy = "!=";
+            } else {
+                $sy = "=";
+            }
+            $fd = CustomerDebt::where('shop_id',$sy,$shop_id)->where('company_id', Auth::user()->company_id)->where('status','!=','deleted')->where('customer_id',$customer_id)->sum('amount_with_interest');
+            $sd = CustomerDebt::where('shop_id',$sy,$shop_id)->where('company_id', Auth::user()->company_id)->where('status','!=','deleted')->where('customer_id',$customer_id)->where('interest',null)->sum('debt_amount');
+            $totald = $fd + $sd;
+            if (!$totald) {
+                $totald = 0;
+            }
+            if ($totald > 0) {
+                $totald = "<b class='text-danger'>".number_format($totald)."</b>";
+            }
+            if ($totald < 0) {
+                $totald = "<b class='text-success'>".number_format(abs($totald))."</b>";
+            }
+            return response()->json(['id'=>$customer_id,'total'=>$totald]);
+        }
+
+        if ($check == 'admin') {
+            Session::put('role','Admin'); 
+        } elseif ($check == 'ceo') {
+            Session::put('role','CEO');
+        } elseif ($check == 'business-owner') {
+            Session::put('role','Business Owner');
+        } elseif ($check == 'cashier') {
+            Session::put('role','Cashier');
+            $val = explode('-',$id);
+            $id = $val[0];
+            $shop_id = $val[1];
+            $data['shop'] = Shop::where('id',$shop_id)->where('company_id',Auth::user()->company_id)->first();
+        }
+        if ($check == "admin" || $check == "ceo" || $check == "business-owner" || $check == 'cashier') {
+            $data['customer'] = Customer::where('id',$id)->where('status','active')->where('company_id', Auth::user()->company_id)->first();
+            if ($data['customer']) {
+                $data['shops'] = Shop::where('company_id', Auth::user()->company_id)->get();
+                return view('customer',compact('data'));
+            } else {
+                return redirect()->back()->with('error','Sorry! It seems like you dont have permission to see records of this customer.');
+            }
+        }
+    }
+
+
+
+}

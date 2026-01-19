@@ -1,0 +1,66 @@
+
+<?php 
+if(Cookie::get("language") == 'en') { 
+    $_GET['retail'] = "Retail";
+    $_GET['wholesale'] = "Wholesale";
+} else {
+    $_GET['retail'] = "Rejareja";
+    $_GET['wholesale'] = "Jumla";
+}   
+?>
+
+@if($data['products'])
+@foreach($data['products'] as $value)
+    <tr class="pr-{{$value->id}}">
+        @if($value->image) 
+            <?php $src = '/images/companies/'.Auth::user()->company->folder.'/products/'. $value->image; ?>
+        @else
+            <?php  $src = "/images/product.jpg"; ?>
+        @endif
+        <td>
+            <span style="display:inline-flex;">
+                <img src="{{ $src }}" class="avatar mr-2" alt="">
+                <span style="display: inline-block;padding-top: 10px;">
+                    {{$value->name}}
+                </span>
+            </span>
+        </td>                                 
+        <td>
+            {{number_format($value->buying_price)}}
+        </td>    
+        <td>
+            <!-- <small><?php //echo $_GET['wholesale']; ?>:</small> {{number_format($value->wholesale_price)}} <br> -->
+             {{number_format($value->retail_price)}}
+        </td>
+        <!-- <td>
+            {{number_format($value->retail_price)}}
+        </td> -->                                     
+        <td>       
+            {{ App\Http\Controllers\ProductController::totalQuantity($value->id) }} 
+        </td>                                  
+        <td>
+            <?php
+                if ($value->productcategory) {
+                    echo $value->productcategory->name;
+                    if ($value->productcategory->categorygroup) {
+                        echo "<br> <small>(".$value->productcategory->categorygroup->name.")</small>";
+                    }
+                }
+            ?>    
+        </td>    
+        <td style="display:none;">
+            @if($value->status == 'published')
+                <span class="badge badge-success">Published</span>
+            @else
+                <span class="badge badge-danger">Unpublished</span>
+            @endif
+        </td>   
+        @if(Auth::user()->isCEOorAdmin())
+        <td>  
+            <a href="/edit/products/{{ $value->id }}" class="btn btn-info btn-sm"><i class="fa fa-edit"></i></a>
+            <a href="#" class="btn btn-danger btn-sm deleteProduct" val="{{$value->id}}" name="{{$value->name}}"><i class="fa fa-times"></i></a>
+        </td>
+        @endif
+    </tr>
+@endforeach
+@endif

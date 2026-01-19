@@ -1,0 +1,128 @@
+@extends('layouts.app')
+@section('css')
+<style type="text/css">
+    .short-cut .link {margin: 0px;cursor: pointer;position: relative;padding-bottom: 5px;color: #01b2c6;}
+    .short-cut .link::before {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 2px;
+      border-radius: 2px;
+      background-color: #1c64b0;
+      bottom: 0;
+      left: 0;
+      transform-origin: right;
+      transform: scaleX(0);
+      transition: transform .3s ease-in-out;
+    }
+    .short-cut .link:hover::before {
+      transform-origin: left;
+      transform: scaleX(1);
+    }
+    .short-cut .link:hover {
+      color: #1c64b0;
+    }
+  @media screen and (max-width: 490px) {
+    /*.header-dropdown {
+        position: relative !important;margin-top: -10px !important;text-align: right;margin-right: -20px !important;
+    }*/
+  }
+</style>
+@endsection
+
+@section('content')
+
+    <div id="wrapper">
+        <nav class="navbar navbar-fixed-top">
+            <div class="container-fluid">
+                @include('layouts.topbar')
+            </div>
+        </nav>
+
+        <div id="left-sidebar" class="sidebar">
+            <div class="sidebar-scroll">
+                @include('layouts.leftside')          
+            </div>
+        </div>
+
+        <div id="main-content">
+            <div class="container-fluid">
+                <div class="block-header">
+                    <div class="row">
+                        @include('layouts.topbottombar')
+                    </div>
+                </div>
+
+                <div class="row clearfix">
+                    <div class="col-lg-12 col-md-12">
+                        <div class="row clearfix">                           
+                            @include('layouts.switch-role')
+                        </div>
+                    </div>
+                    <div class="col-sm-4 short-cut">
+                        <div class="card">
+                            <div class="body">
+                                <h4><i class="fa fa-align-center"></i> </h4>
+                                <p class="link" link="/store-master/{{$data['store']->id}}/stock"><?php echo $_GET['stock-records']; ?> <i class="fa fa-arrow-right pull-right mt-1"></i></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4 short-cut">
+                        <div class="card">
+                            <div class="body">
+                                <h4><i class="fa fa-long-arrow-down"></i><i class="fa fa-long-arrow-up"></i> </h4>
+                                <p class="link" link="/store-master/{{$data['store']->id}}/transfer-form"><?php echo $_GET['transfer-item-menu']; ?> <i class="fa fa-arrow-right pull-right mt-1"></i></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4 short-cut">
+                        <div class="card">
+                            <div class="body">
+                                <h4><i class="icon-wallet"></i> </h4>
+                                <p class="link" link="/store-master/{{$data['store']->id}}/products"><?php echo $_GET['available-products']; ?> <i class="fa fa-arrow-right pull-right mt-1"></i></p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- <div class="col-lg-12 col-md-12">
+                        <div class="card">
+                            <div class="body">
+                                <div class="row clearfix">
+                                    <div class="col-md-4">
+                                        <div class="body bg-success text-light">
+                                            <h4><i class="fa fa-align-center"></i> </h4>
+                                            <p style="margin: 0px;"><?php echo $_GET['stock-records']; ?> <i class="fa fa-arrow-right pull-right mt-1"></i></p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="body bg-warning text-light">
+                                            <h4><i class="fa fa-long-arrow-down"></i><i class="fa fa-long-arrow-up"></i> </h4>
+                                            <p style="margin: 0px;"><?php echo $_GET['transfer-records-menu']; ?> <i class="fa fa-arrow-right pull-right mt-1"></i></p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="body bg-danger text-light">
+                                            <h4><i class="icon-wallet"></i> </h4>
+                                            <p style="margin: 0px;"><?php echo $_GET['available-products']; ?> <i class="fa fa-arrow-right pull-right mt-1"></i></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div> -->
+                </div>
+
+
+            </div>
+        </div>
+    </div>
+@endsection
+
+@section('js')
+<script type="text/javascript">
+    $(document).on('click', '.link', function(e){
+        e.preventDefault();
+        var link = $(this).attr('link');
+        window.location = link;
+    });
+</script>
+@endsection

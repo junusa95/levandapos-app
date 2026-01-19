@@ -1,0 +1,8 @@
+
+    /*printed css*/
+    .printed-order {font-size: 18px;font-family: 'Times New Roman';font-weight: bolder;color: #000 !important;width: 58mm;}
+    .printed-order .head {text-align: center;}
+    .printed-order .head h5 {padding-bottom: 0px;}
+    .printed-order table td {border-bottom: 1px solid #000;}
+    .printed-order table .row {width: 58mm;margin-left: 10px;}
+    .printed-order table .row .r-name {padding-left: 0px;margin-left: -10px;} 
