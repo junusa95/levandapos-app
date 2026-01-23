@@ -21,4 +21,9 @@ class Role extends Model
             return false;
         }
     }
+
+    protected static function businessOwnerRoleDetails()
+    {
+        return self::where('name', "Business Owner")->first();
+    }
 }

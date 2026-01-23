@@ -63,6 +63,21 @@ class UserController extends Controller
             return response()->json($validator->errors(),400); 
         }
 
+        /**
+         * Restricts the assignment of 'Business Owner' Role to 
+         * a specific user, only when the logged in user has either 
+         * a CEO or Business Owner Roles.
+         */
+        if(Auth::user() && !Auth::user()->isBusinessOwner()){
+            $businessOwnerRoleDetails = Role::businessOwnerRoleDetails();
+            if(in_array($businessOwnerRoleDetails->id, $request->input('roles'))){
+                return response()->json([
+                    'status' => 0,
+                    'message' => "Sorry! You are not authorized to assign the 'Business Owner' Role to this user."
+                ]);
+            }
+        }
+
         $user = User::create([
                     'name' => $request->name,
                     'username'=>$request->username,
@@ -107,6 +122,21 @@ class UserController extends Controller
 
         if ($validator->fails()) {
             return response()->json($validator->errors(),400);
+        }
+
+        /**
+         * Restricts the assignment of 'Business Owner' Role to 
+         * a specific user, only when the logged in user has either 
+         * a CEO or Business Owner Roles.
+         */
+        if(Auth::user() && !Auth::user()->isBusinessOwner()){
+            $businessOwnerRoleDetails = Role::businessOwnerRoleDetails();
+            if(in_array($businessOwnerRoleDetails->id, $request->input('roles'))){
+                return response()->json([
+                    'status' => 0,
+                    'message' => "Sorry! You are not authorized to assign the 'Business Owner' Role to this user."
+                ]);
+            }
         }
 
          $user = User::where('id',$request->user_id)->where('company_id',Auth::user()->company_id)->update([

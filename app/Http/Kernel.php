@@ -75,6 +75,7 @@ class Kernel extends HttpKernel
         'admin.ceo.businessowner' => "App\Http\Middleware\CeoAdminBusinessOwner",
         'admin.ceo.smaster' => "App\Http\Middleware\CeoAdminSmaster",
         'admin.ceo.cashier' => "App\Http\Middleware\CeoAdminCashier",
+        'API.ceo.businessowner' => "App\Http\Middleware\ApiCeoBusinessOwnerMiddleware",
     ];
 
     /**

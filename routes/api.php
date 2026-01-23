@@ -96,11 +96,11 @@ Route::middleware(['auth:sanctum','ApiTenant'])->group(function () {
 
     // Route::get("sales/{shop_id}","Apps\SaleController@sales");
 
-    //shop route no auth
+    //shop routes with auth
     Route::get("shops/{user_id}","Apps\ShopController@shops");
-    Route::post("shop/create_new_shop","Apps\ShopController@create_new_shop");
-    Route::post("shop/update_shop","Apps\ShopController@update_shop");
-    Route::get("shops/delete_shop/{shop_id}","Apps\ShopController@delete_shop");
+    Route::middleware(['API.ceo.businessowner'])->post("shop/create_new_shop","Apps\ShopController@create_new_shop");
+    Route::middleware(['API.ceo.businessowner'])->post("shop/update_shop","Apps\ShopController@update_shop");
+    Route::middleware(['API.ceo.businessowner'])->get("shops/delete_shop/{shop_id}","Apps\ShopController@delete_shop");
     Route::get("shops/details/{shop_id}","Apps\ShopController@shop_details");
 
     //expenses category routes

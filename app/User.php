@@ -82,6 +82,15 @@ class User extends Authenticatable
         }
     }
 
+    public function isCEOorBusinessOwner() {
+        $check = $this->roles()->whereIn('roles.name',['CEO','Business Owner'])->get();
+        if(!$check->isEmpty()) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     public function isCEOorAdminorBusinessOwner() {
         $check = $this->roles()->whereIn('roles.name',['Admin','CEO','Business Owner'])->get();
         if(!$check->isEmpty()) {
