@@ -297,6 +297,23 @@ class SaleController extends Controller
             'data' => $data
         ]);
     }
+    private function syncWithShopDailySales($shop_id, $product_sale_date){
+        $sales = \App\Sale::where('shop_id',$shop_id)->where('status','sold')->whereDate('updated_at', $product_sale_date)->get();
+        $expenses = \App\ShopExpense::where('shop_id',$shop_id)->whereDate('created_at', $product_sale_date)->get();
+        if ($sales->isNotEmpty() || $expenses->isNotEmpty()) {
+            $t_sales = $sales->sum('sub_total');
+            $quantities = $sales->sum('quantity');
+            $t_expenses = $expenses->sum('amount');
+            $profit = $sales->sum('sub_total') - $sales->sum('total_buying');
+
+            $dsale = \App\DailySale::where('date',$product_sale_date)->where('shop_id',$shop_id)->first();
+            if($dsale) {
+                $dsale->update(['total_sales'=>$t_sales,'quantities'=>$quantities,'total_expenses'=>$t_expenses,'profit'=>$profit]);
+            } else {
+                \App\DailySale::create(['date'=>$product_sale_date, 'shop_id'=>$shop_id,'company_id'=>Auth::user()->company_id,'total_sales'=>$t_sales,'quantities'=>$quantities,'total_expenses'=>$t_expenses,'profit'=>$profit]);
+            }
+        }
+    }
     public function sales_update(Request $request){
         $data = array();
         $id = $request->input('id');
@@ -322,6 +339,15 @@ class SaleController extends Controller
                         $create->update(['quantity'=>$qty,'selling_price'=>$price,'total_buying'=>$total_buying,'sub_total'=>$subtotal,'edited_at'=>$edited_at,'edited_by'=>Auth::user()->id,'status'=>'sold','created_at'=>$row->created_at,'updated_at'=>$row->updated_at]);
                         $quantity = ($q->first()->quantity + $diffQ);
                         $q->update(['quantity'=>$quantity]);
+
+                        /**
+                         * Also update the 'Daily-Sales' table, 
+                         * if the updated sale was initially made a day before today.
+                        */
+                        if ($solddate != date("d-m-Y")) {
+                            $this->syncWithShopDailySales($row->shop_id, $solddate);
+                        }
+
                         $deni = CustomerDebt::where('reference',$row->sale_no)->where('company_id',Auth::user()->company_id)->first();
                         if ($deni) {
                             $stock_val = Sale::where('sale_no',$row->sale_no)->where('company_id',Auth::user()->company_id)->where('status','sold')->sum('sub_total');
@@ -469,75 +495,93 @@ class SaleController extends Controller
 
     public function sales_delete($sale_id){
         $row = Sale::where('id',$sale_id)->where('company_id',Auth::user()->company_id)->first();
-            if ($row) {
-                $edited_at = date('Y-m-d H:i:s');
-                $solddate = date("d-m-Y", strtotime($row->updated_at));
-                $q = DB::connection('tenant')->table('shop_products')->where('shop_id',$row->shop_id)->where('product_id',$row->product_id)->where('active','yes');
-                if ($q->first()) {
-                    $update = $row->update(['status'=>'deleted','edited_at'=>$edited_at,'edited_by'=>Auth::user()->id]);
-                    if ($update) {
-                        $quantity = ($q->first()->quantity + $row->quantity);
-                        $q->update(['quantity'=>$quantity]);
-                        $deni = CustomerDebt::where('reference',$row->sale_no)->where('company_id',Auth::user()->company_id)->first();
-                        if ($deni) {
-                            $stock_val = Sale::where('sale_no',$row->sale_no)->where('status','sold')->where('company_id',Auth::user()->company_id)->sum('sub_total');
-                            if ($stock_val) {
-                                $amount_paid = $deni->amount_paid;
-                                $newdeni = $stock_val - $amount_paid;
-                                $deni->update(['debt_amount'=>$newdeni,'stock_value'=>$stock_val]);
-                            } else {
-                                $deni->delete();
-                            }
-                        }
+        if ($row) {
+            $edited_at = date('Y-m-d H:i:s');
+            $solddate = date("d-m-Y", strtotime($row->updated_at));
+            $q = DB::connection('tenant')->table('shop_products')->where('shop_id',$row->shop_id)->where('product_id',$row->product_id)->where('active','yes');
+            if ($q->first()) {
+                $update = $row->update(['status'=>'deleted','edited_at'=>$edited_at,'edited_by'=>Auth::user()->id]);
+                if ($update) {
+                    $quantity = ($q->first()->quantity + $row->quantity);
+                    $q->update(['quantity'=>$quantity]);                    
 
-                        $data['predate'] = "no";
-                        if ($solddate != date("d-m-Y")) { //check if deleting today sold item OR previous date
-                            $data['predate'] = $solddate;
-                        }
-
-                        // return response()->json(['success'=>'deleted','data'=>$data]);
-                        return response()->json([
-            'status' => 1,
-            'message'=> 'success',
-            // 'data' => $data
-        ]);
+                    /**
+                     * Also update the 'Daily-Sales' table, 
+                     * if the updated sale was initially made a day before today.
+                    */
+                    if ($solddate != date("d-m-Y")) {
+                        $this->syncWithShopDailySales($row->shop_id, $solddate);
                     }
-                } else {
-                    $update = $row->update(['status'=>'deleted','edited_at'=>$edited_at,'edited_by'=>Auth::user()->id]);
-                    if($update) {
-                        $deni = CustomerDebt::where('reference',$row->sale_no)->where('company_id',Auth::user()->company_id)->first();
-                        if ($deni) {
-                            $stock_val = Sale::where('sale_no',$row->sale_no)->where('status','sold')->where('company_id',Auth::user()->company_id)->sum('sub_total');
-                            if ($stock_val) {
-                                $amount_paid = $deni->amount_paid;
-                                $newdeni = $stock_val - $amount_paid;
-                                $deni->update(['debt_amount'=>$newdeni,'stock_value'=>$stock_val]);
-                            } else {
-                                $deni->delete();
-                            }
-                        }
 
-                        $data['predate'] = "no";
-                        if ($solddate != date("d-m-Y")) { //check if deleting today sold item OR previous date
-                            $data['predate'] = $solddate;
+                    $deni = CustomerDebt::where('reference',$row->sale_no)->where('company_id',Auth::user()->company_id)->first();
+                    if ($deni) {
+                        $stock_val = Sale::where('sale_no',$row->sale_no)->where('status','sold')->where('company_id',Auth::user()->company_id)->sum('sub_total');
+                        if ($stock_val) {
+                            $amount_paid = $deni->amount_paid;
+                            $newdeni = $stock_val - $amount_paid;
+                            $deni->update(['debt_amount'=>$newdeni,'stock_value'=>$stock_val]);
+                        } else {
+                            $deni->delete();
                         }
-
-                        // return response()->json(['success'=>'deleted','data'=>$data]);
-                        return response()->json([
-            'status' => 1,
-            'message'=> 'success',
-            // 'data' => $data
-        ]);
                     }
+
+                    $data['predate'] = "no";
+                    if ($solddate != date("d-m-Y")) { //check if deleting today sold item OR previous date
+                        $data['predate'] = $solddate;
+                    }
+
+                    // return response()->json(['success'=>'deleted','data'=>$data]);
+                    return response()->json([
+                        'status' => 1,
+                        'message'=> 'success',
+                        // 'data' => $data
+                    ]);
                 }
             } else {
-                // return response()->json(['error'=>'error']);
-                return response()->json([
-            'status' => 1,
-            'message'=> 'error',
-            // 'data' => $data
-        ]);
+                $update = $row->update(['status'=>'deleted','edited_at'=>$edited_at,'edited_by'=>Auth::user()->id]);
+                if($update) {          
+
+                    /**
+                     * Also update the 'Daily-Sales' table, 
+                     * if the updated sale was initially made a day before today.
+                    */
+                    if ($solddate != date("d-m-Y")) {
+                        $this->syncWithShopDailySales($row->shop_id, $solddate);
+                    }
+
+                    $deni = CustomerDebt::where('reference',$row->sale_no)->where('company_id',Auth::user()->company_id)->first();
+                    if ($deni) {
+                        $stock_val = Sale::where('sale_no',$row->sale_no)->where('status','sold')->where('company_id',Auth::user()->company_id)->sum('sub_total');
+                        if ($stock_val) {
+                            $amount_paid = $deni->amount_paid;
+                            $newdeni = $stock_val - $amount_paid;
+                            $deni->update(['debt_amount'=>$newdeni,'stock_value'=>$stock_val]);
+                        } else {
+                            $deni->delete();
+                        }
+                    }
+
+                    $data['predate'] = "no";
+                    if ($solddate != date("d-m-Y")) { //check if deleting today sold item OR previous date
+                        $data['predate'] = $solddate;
+                    }
+
+                    // return response()->json(['success'=>'deleted','data'=>$data]);
+                    return response()->json([
+                        'status' => 1,
+                        'message'=> 'success',
+                        // 'data' => $data
+                    ]);
+                }
             }
+        } else {
+            // return response()->json(['error'=>'error']);
+            return response()->json([
+                'status' => 1,
+                'message'=> 'error',
+                // 'data' => $data
+            ]);
+        }
     }
 
     public function sales_and_profit_view($shop_id, $date){
@@ -1093,6 +1137,13 @@ class SaleController extends Controller
         $q->quantity = $quantity;
         $q->save();
 
+        /**
+         * Also update the 'Daily-Sales' table, 
+         * if the updated sale was initially made a day before today.
+        */
+        if ($solddate != date("d-m-Y")) {
+            $this->syncWithShopDailySales($row->shop_id, $solddate);
+        }
 
         $deni = CustomerDebt::where('reference',$row->sale_no)->where('company_id',Auth::user()->company_id)->first();
         if ($deni) {
