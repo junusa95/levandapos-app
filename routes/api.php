@@ -167,12 +167,15 @@ Route::middleware(['auth:sanctum','ApiTenant'])->group(function () {
     Route::post("user/assign/shop","Apps\UserController@assignToShop");
     Route::post("user/update/assign/shop","Apps\UserController@updateAssignment");
 
-     //switch settings
-    Route::get("setting/output/list","Apps\SettingController@settingStatus");
-    Route::post("setting/switch/expire/date","Apps\SettingController@switchExpireDate");
-    Route::post("setting/switch/minimum/stock/level","Apps\SettingController@switchStockLevel");
-    Route::post("setting/switch/import/product","Apps\SettingController@switchImportProduct");
-    Route::post("setting/switch/product/category","Apps\SettingController@changeProductCategories");
+    // settings routes
+    Route::prefix('settings/company')->group(function () {
+        Route::prefix('{shop_id}')->group(function () {
+            Route::patch("/", "Apps\SettingsController@update_shop_specific_settings");
+            Route::get("/", "Apps\SettingsController@all_shop_settings");
+        });
+        Route::patch("/", "Apps\SettingsController@update_general_settings");
+        Route::get("/", "Apps\SettingsController@all_company_settings");
+    });
 
 Route::get("dashboard_shop_details/{shop_id}","Apps\ShopController@dashboard_shop_details");
 
