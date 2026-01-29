@@ -16,6 +16,7 @@
         "laravel/sanctum": "^3.3",
         "laravel/tinker": "^2.0",
         "laravel/ui": "^4.0",
+        "league/flysystem-aws-s3-v3": "^3.31",
         "maatwebsite/excel": "^3.1",
         "maestroerror/php-heic-to-jpg": "^1.0"
     },

@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Maestroerror\HeicToJpg;
 use Intervention\Image\ImageManager;
@@ -476,9 +478,9 @@ class UserController extends Controller
                     return response()->json([
                         'status' => 1,
                         'message' => 'success',
-                    ]);
+                   ]);
                 } else {
-                    // return response()->json(['status'=>'error']);
+                     return response()->json(['status'=>'error']);
                     return response()->json([
                         'status' => 1,
                         'message' => 'error',
@@ -488,26 +490,62 @@ class UserController extends Controller
         }
 
         if ($request->check == "change company picture") {
-            if ($request->hasFile('image')) {
-                $file = $request->file('image');
-                $filename = time().'_'.$file->getClientOriginalName();
-                $file->move(public_path('uploads/companyLogo'), $filename);
+            if ($request->hasFile('image') && $request->file('image')->isValid()) {
+                try {
+                    $file = $request->file('image');
 
-                $company = Company::find(Auth::user()->company->id);
-                $company->logo = $filename;
-                $company->save();
+                    // HEIC → JPG (only if needed)
+                    if (HeicToJpg::isHeic($file)) {
+                        $file = HeicToJpg::convert($file)->get();
+                    }
+                    
+                    $manager = new ImageManager(new Driver());
+                    $binaryData = file_get_contents($file->getRealPath());
+                    $image = $manager->read($binaryData)->scaleDown(width: 540)->toJpeg(85); // compress
 
-                // return response()->json(['status'=>'success']);
-                return response()->json([
-                    'status' => 1,
-                    'message' => 'success',
-                ]);
+                    // Company folder
+                    $cfolder = Auth::user()->company->folder;
+                    $company = Company::whereId(Auth::user()->company_id)->first();
+                    if (!$cfolder) {
+                        $fname = preg_replace('/[^a-zA-Z0-9]+/', '_', Auth::user()->company->name);
+                        $cfolder = Auth::user()->company_id . '_' . $fname;
+                        $company->update(['folder' => $cfolder]);
+                    }
+
+                    $profile_path = "companies/{$cfolder}/company-profiles";
+                    $imageName = time() . '_' . Str::random(6) . '.jpg';
+
+                    // ✅ Upload IMAGE BYTES
+                    Storage::disk('s3')->put("{$profile_path}/{$imageName}", $image->toString(), 'public');
+                    
+                    // Delete the previous (existing) image
+                    Storage::disk('s3')->delete("{$profile_path}/$company->logo");
+
+                    // Save the name of the newly uploaded image
+                    $company->update(['logo'=>$imageName]);
+
+                    $picture = '';
+                    if ($company->logo != null){
+                        $base_url = rtrim(config('filesystems.disks.s3.endpoint'), '/') ."/". config('filesystems.disks.s3.public_id') .":". config('filesystems.disks.s3.bucket') ."/";
+                        $picture = $base_url . 'companies/'. $company->folder .'/company-profiles/'. $company->logo;
+                    }
+                    
+                    return response()->json([
+                        'status' => 'success',
+                        'message' => 'Success! Image successfully uploaded.',
+                        'company_logo' => $picture
+                    ], 200);
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Error! Upload failed: ' . $e->getMessage()
+                    ], 500);
+                }
             }else{
-                // return response()->json(['status'=>'failed']);
                 return response()->json([
-                    'status' => 1,
-                    'message' => 'error',
-                ]);
+                    'status' => 'error',
+                    'message' => 'Error! Invalid or missing image file.',
+                ], 400);
             }
         }
         if ($request->check == "change profile picture") {
@@ -517,62 +555,61 @@ class UserController extends Controller
 
             if($request->hasFile('image')) {
 
-                $f = $request->file('image');
+                try{
+                    $file = $request->file('image');
 
-                if (HeicToJpg::isHeic($f)) { // heic format used by iphone users
-                    $f = HeicToJpg::convert($f)->get();
-                }
+                    if (HeicToJpg::isHeic($file)) { // heic format used by iphone users
+                        $file = HeicToJpg::convert($file)->get();
+                    }
 
-                $manager = new ImageManager(new Driver());
-                $image = $manager->read($f);
-                $image->scaleDown(width: 500);
+                    $manager = new ImageManager(new Driver());
+                    $image = $manager->read($file)->scaleDown(width: 540)->toJpeg(85); // compress
 
-                // check for directory availability
-                $cfolder = Auth::user()->company->folder;
-                if (! $cfolder) {
-                    $fname = Auth::user()->company->name;
-                    $fname = preg_replace("/\.[^.]+$/", "", $fname);
-                    $fname = preg_replace("/[^a-zA-Z0-9]+/", "_", $fname);
-                    $cfolder = Auth::user()->company->id.'_'.$fname;
-                    Company::find(Auth::user()->company_id)->update(['folder'=>$cfolder]);
-                }
-                $main_path = public_path().'/images/companies/'.$cfolder;
-                if (! File::exists($main_path)) {
-                    File::makeDirectory($main_path, $mode = 0777, true, true);
-                }
-                $profile_path = public_path().'/images/companies/'.$cfolder.'/profiles';
-                if (! File::exists($profile_path)) {
-                    File::makeDirectory($profile_path, $mode = 0777, true, true);
-                }
+                    // check for directory availability
+                    $cfolder = Auth::user()->company->folder;
+                    $user = User::whereId(Auth::user()->id)->first();
+                    $company = Company::whereId(Auth::user()->company_id)->first();
+                    if (!$cfolder) {
+                        $fname = preg_replace('/[^a-zA-Z0-9]+/', '_', Auth::user()->company->name);
+                        $cfolder = Auth::user()->company_id . '_' . $fname;
+                        $company->update(['folder' => $cfolder]);
+                    }
 
-                // Main Image Upload on Folder Code
-                $ext = $request->file('image')->getClientOriginalExtension();
-                $orig_name = preg_replace("/\.[^.]+$/", "", $request->file('image')->getClientOriginalName());
-                $orig_name = preg_replace("/[^a-zA-Z0-9]+/", "_", $orig_name);
-                $imageName = time().'-'.$orig_name.'.'.$ext;
-                $destinationPath = public_path('images/companies/'.$cfolder.'/profiles/');
+                    $profile_path = "companies/{$cfolder}/profiles";
+                    $imageName = time() . '_' . Str::random(6) . '.jpg';
 
-                if ($image->save($destinationPath.$imageName)) {
-                    User::find(Auth::user()->id)->update(['profile'=>$imageName]);
-                    // return response()->json(['status'=>'success']);
+                    // ✅ Upload IMAGE BYTES
+                    Storage::disk('s3')->put("{$profile_path}/{$imageName}", $image->toString(), 'public');
+
+                    // Delete the previous (existing) image
+                    Storage::disk('s3')->delete("{$profile_path}/". $user->profile);
+
+                    // Save the name of the newly uploaded image
+                    $user->update(['profile'=>$imageName]);
+
+                    $picture = '';
+                    if ($user->profile != null){
+                        $base_url = rtrim(config('filesystems.disks.s3.endpoint'), '/') ."/". config('filesystems.disks.s3.public_id') .":". config('filesystems.disks.s3.bucket') ."/";
+                        $picture = $base_url . 'companies/'. $company->folder .'/profiles/'. $user->profile;
+                    }
+
                     return response()->json([
-                        'status' => 1,
-                        'message' => 'error',
-                    ]);
-                } else {
-                    // return response()->json(['status'=>'fail to upload']);
+                        'status' => 'success',
+                        'message' => 'Success! Image successfully uploaded.',
+                        'data' => $picture
+                    ], 200);
+                } catch (\Exception $e) {
                     return response()->json([
-                        'status' => 1,
-                        'message' => 'fail to upload',
-                    ]);
+                        'status' => 'error',
+                        'message' => 'Error! Upload failed: ' . $e->getMessage()
+                    ], 500);
                 }
 
             } else {
-                // return response()->json(['status'=>'empty file']);
                 return response()->json([
-                    'status' => 1,
-                    'message' => 'empty file',
-                ]);
+                    'status' => 'error',
+                    'message' => 'Error! Invalid or missing image file.',
+                ], 400);
             }
         }
 

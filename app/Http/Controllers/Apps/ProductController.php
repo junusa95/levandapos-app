@@ -19,7 +19,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Intervention\Image\Drivers\Imagick\Driver;
 use Intervention\Image\ImageManager;
 use Maestroerror\HeicToJpg;
@@ -181,49 +184,39 @@ class ProductController extends Controller
             }
 
             if($request->hasFile('image')) {
+                try{
+                    $file = $request->file('image');
 
-                $f = $request->file('image');
+                    if (HeicToJpg::isHeic($file)) { // heic format used by iphone users
+                        $file = HeicToJpg::convert($file)->get();
+                    }
 
-                if (HeicToJpg::isHeic($f)) { // heic format used by iphone users
-                    $f = HeicToJpg::convert($f)->get();
-                }
+                    $manager = new ImageManager(new Driver());
+                    $image = $manager->read($file)->scaleDown(width: 540)->toJpeg(85);
 
-                $manager = new ImageManager(new Driver());
-                $image = $manager->read($f);
-                $image->scaleDown(width: 540);
+                    $cfolder = $user->company->folder;
+                    if (! $cfolder) {
+                        $fname = preg_replace("/[^a-zA-Z0-9]+/", "_", $user->company->name);
+                        $cfolder = $user->company->id.'_'.$fname;
+                        Company::whereId($user->company_id)->update(['folder'=>$cfolder]);
+                    }
 
-                $cfolder = $user->company->folder;
-                if (! $cfolder) {
-                    $fname = $user->company->name;
-                    $fname = preg_replace("/\.[^.]+$/", "", $fname);
-                    $fname = preg_replace("/[^a-zA-Z0-9]+/", "_", $fname);
-                    $cfolder = $user->company->id.'_'.$fname;
-                    Company::find($user->company_id)->update(['folder'=>$cfolder]);
-                }
-                $main_path = public_path().'/images/companies/'.$cfolder;
-                if (! File::exists($main_path)) {
-                    File::makeDirectory($main_path, $mode = 0777, true, true);
-                }
-                $products_path = public_path().'/images/companies/'.$cfolder.'/products';
-                if (! File::exists($products_path)) {
-                    File::makeDirectory($products_path, $mode = 0777, true, true);
-                }
+                    $products_path = "companies/{$cfolder}/products";
+                    $imageName = time() . '_' . Str::random(6) . '.jpg';
 
-                // Main Image Upload on Folder Code
-                $ext = $request->file('image')->getClientOriginalExtension();
-                $orig_name = preg_replace("/\.[^.]+$/", "", $request->file('image')->getClientOriginalName());
-                $orig_name = preg_replace("/[^a-zA-Z0-9]+/", "_", $orig_name);
-                $imageName = time().'-'.$orig_name.'.jpg'; // convert all images to jpg
-                $destinationPath = public_path('images/companies/'.$cfolder.'/products/');
+                    // ✅ Upload IMAGE BYTES
+                    Storage::disk('s3')->put("{$products_path}/{$imageName}", $image->toString(), 'public');
 
-                if ($image->save($destinationPath.$imageName)) {
                     $product->update(['image'=>$imageName]);
+                }catch(\Exception $e){
+                    Log::error($e->getMessage());
                 }
             }
 
             $picture = '';
             if ($product->image != null){
-                $picture = '/images/companies/'.$user->company->folder.'/products/'.$product->image;
+                $base_url = rtrim(config('filesystems.disks.s3.endpoint'), '/') ."/". config('filesystems.disks.s3.public_id') .":". config('filesystems.disks.s3.bucket') ."/";
+                $picture = $base_url . 'companies/'. $user->company->folder .'/products/'. $product->image;
             }
 
             $productData = (object)[
@@ -247,11 +240,13 @@ class ProductController extends Controller
                 'data' => $productData
             ]);
 
+        }else{
+            return redirect()->back()->with('error', 'Error! Something went wrong, please try again.');
         }
     }
 
     public function update(Request $request){
-        \Log::info('Flutter Payload (all):', $request->all());
+        Log::info('Flutter Payload (all):', $request->all());
 // \Log::info('Flutter Payload (raw):', [$request->getContent()]);
 // \Log::info('Flutter Headers:', $request->headers->all());
 
@@ -265,7 +260,7 @@ class ProductController extends Controller
 
         $product = Product::where('id',$request->product_id)->where('company_id',$user->company_id)->first();
 
-        \Log::info('controller product (raw):', [$product]);
+        Log::info('controller product (raw):', [$product]);
 
         if ($product){
             // $update = $product->update([
@@ -294,61 +289,77 @@ class ProductController extends Controller
             // $product->save();
             $update = $product->save();
 
-        \Log::info('controller product (updated):', [$update]);
+            Log::info('controller product (updated):', [$update]);
             if ($update){
                 $product = Product::where('id',$request->product_id)->where('company_id',$user->company_id)->first();
 
-        \Log::info('controller product (new):', [$product]);
+                Log::info('controller product (new):', [$product]);
                 if($request->hasFile('image')) {
+                    try{
+                        $file = $request->file('image');
 
-                    $f = $request->file('image');
+                        if (HeicToJpg::isHeic($file)) { // heic format used by iphone users
+                            $file = HeicToJpg::convert($file)->get();
+                        }
 
-                    if (HeicToJpg::isHeic($f)) { // heic format used by iphone users
+                        $manager = new ImageManager(new Driver());
+                        $image = $manager->read($file)->scaleDown(width: 540)->toJpeg(85);
 
-                        $f = HeicToJpg::convert($f)->get();
-                    }
+                        // check for directory availability
+                        $cfolder = $user->company->folder;
+                        if (! $cfolder) {
+                            $fname = preg_replace("/[^a-zA-Z0-9]+/", "_", $user->company->name);
+                            $cfolder = $user->company->id.'_'.$fname;
+                            Company::find($user->company_id)->update(['folder'=>$cfolder]);
+                        }
 
-                    $manager = new ImageManager(new Driver());
-                    $image = $manager->read($f);
-                    $image->scaleDown(width: 540);
+                        $products_path = "companies/{$cfolder}/products";
+                        $imageName = time() . '_' . Str::random(6) . '.jpg';
 
-                    // check for directory availability
-                    $cfolder = $user->company->folder;
-                    if (! $cfolder) {
-                        $fname = $user->company->name;
-                        $fname = preg_replace("/\.[^.]+$/", "", $fname);
-                        $fname = preg_replace("/[^a-zA-Z0-9]+/", "_", $fname);
-                        $cfolder = $user->company->id.'_'.$fname;
-                        Company::find($user->company_id)->update(['folder'=>$cfolder]);
-                    }
-                    $main_path = public_path().'/images/companies/'.$cfolder;
-                    if (! File::exists($main_path)) {
-                        File::makeDirectory($main_path, $mode = 0777, true, true);
-                    }
-                    $products_path = public_path().'/images/companies/'.$cfolder.'/products';
-                    if (! File::exists($products_path)) {
-                        File::makeDirectory($products_path, $mode = 0777, true, true);
-                    }
+                        // ✅ Upload IMAGE BYTES
+                        Storage::disk('s3')->put("{$products_path}/{$imageName}", $image->toString(), 'public');
+                        
+                        // Delete the previous (existing) image
+                        Storage::disk('s3')->delete("{$products_path}/$product->image");
 
-                    // Main Image Upload to Folder Code
-                    $ext = $request->file('image')->getClientOriginalExtension();
-                    $orig_name = preg_replace("/\.[^.]+$/", "", $request->file('image')->getClientOriginalName());
-                    $orig_name = preg_replace("/[^a-zA-Z0-9]+/", "_", $orig_name);
-                    $imageName = time().'-'.$orig_name.'.jpg'; // convert all images to jpg
-                    $destinationPath = public_path('images/companies/'.$cfolder.'/products/');
-
-                    if ($image->save($destinationPath.$imageName)) {
+                        // Save the name of the newly uploaded image
                         $product->update(['image'=>$imageName]);
+                    }catch(\Exception $e){
+                        Log::error($e->getMessage());
                     }
                 }
+
+                $picture = '';
+                if ($product->image != null){
+                    $base_url = rtrim(config('filesystems.disks.s3.endpoint'), '/') ."/". config('filesystems.disks.s3.public_id') .":". config('filesystems.disks.s3.bucket') ."/";
+                    $picture = $base_url . 'companies/'. $user->company->folder .'/products/'. $product->image;
+                }
+    
+                $productData = (object)[
+                    'name' => $product->name,
+                    'buying_price' => $product->buying_price,
+                    'wholesale_price' => $product->wholesale_price,
+                    'retail_price' => $product->retail_price,
+                    'company_id' => $user->company_id,
+                    'measurement_id' => $product->measurement,
+                    'product_category_id' => $product->product_category_id,
+                    'status' => $product->status,
+                    'user_id' => $product->user_id,
+                    'expire_date' => $product->expire_date,
+                    'min_stock_level '=> $product->min_stock_level,
+                    'image '=> $picture
+                ];
 
                 return response()->json([
                     'status'=> 1,
                     'message'=> 'success',
-                    'data' => $product
+                    'data' => $productData
                 ]);
+            }else{
+                return redirect()->back()->with('error', 'Error! Something went wrong, please try again.');
             }
-
+        }else{
+            return redirect()->back()->with('error', 'Error! Product details not found.');
         }
     }
 
